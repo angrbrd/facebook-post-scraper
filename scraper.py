@@ -220,8 +220,7 @@ if __name__ == "__main__":
 
     if args.usage == "WT":
         with open('output.txt', 'w') as file:
-            for post in postBigDict:
-                file.write(json.dumps(post))  # use json load to recover
+            file.write(json.dumps(postBigDict, indent=4))  # use json load to recover
     else:
         for post in postBigDict:
             print(post)
