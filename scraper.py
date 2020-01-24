@@ -5,7 +5,7 @@ import json
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup as bs
-
+from datetime import datetime
 
 def _extract_html(bs_data):
     k = bs_data.find_all(class_="_5pcr userContentWrapper")
@@ -39,30 +39,53 @@ def _extract_html(bs_data):
         for postPicture in postPictures:
             postDict['Image'] = postPicture.get('src')
 
+        # Post Submit Time
+
+        postSubmits = item.find_all("abbr", class_="_5ptz")
+        postDict['PostDate'] = ""
+        for postSubmit in postSubmits:
+            unix_time_stamp = postSubmit.get("data-utime")
+            postDict['PostDate'] = datetime.fromtimestamp(int(unix_time_stamp)).isoformat()
+
+        # Shares
+        postShares = item.find_all(attrs={"data-testid": "UFI2SharesCount/root"})
+        postDict['Shares'] = ""
+        for postShare in postShares:
+            postDict['Shares'] = postShare.text.split(" Shares")[0  ]
+
         # Comments
 
         postComments = item.find_all(attrs={"data-testid": "UFI2Comment/root_depth_0"})
-        postDict['Comments'] = dict()
+        postDict['Comments'] = list()
 
         for comment in postComments:
+            comment_tmp = dict()
 
             if comment.find(class_="_6qw4") is None:
                 continue
 
-            commenter = comment.find(class_="_6qw4").text
-            postDict['Comments'][commenter] = dict()
+            comment_username = comment.find(class_="_6qw4").text
+            if comment_username is not None:
+                comment_tmp["user_nickname"] = comment_username.replace(".", "")
 
             comment_text = comment.find("span", class_="_3l3x")
             if comment_text is not None:
-                postDict['Comments'][commenter]["text"] = comment_text.text
-        
+                comment_tmp["text"] = comment_text.text
+
             comment_link = comment.find(class_="_ns_")
             if comment_link is not None:
-                postDict['Comments'][commenter]["link"] = comment_link.get("href")
+                comment_tmp["link"] = comment_link.get("href")
 
             comment_pic = comment.find(class_="_2txe")
             if comment_pic is not None:
-                postDict['Comments'][commenter]["image"] = comment_pic.find(class_="img").get("src")
+                comment_tmp["image"] = comment_pic.find(class_="img").get("src")
+
+            comment_timestamp = comment.find("a", class_="_6qw7")
+            if comment_timestamp is not None:
+                unix_time_stamp = comment_timestamp.find(class_="livetimestamp").get("data-utime")
+                comment_tmp["submitted"] = datetime.fromtimestamp(int(unix_time_stamp)).isoformat()
+
+            postDict['Comments'].append(comment_tmp)
 
         # Reactions
 
@@ -104,18 +127,18 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
         email = file.readline().split('"')[1]
         password = file.readline().split('"')[1]
 
-    option = Options()
+    # option = Options()
 
-    option.add_argument("--disable-infobars")
-    option.add_argument("start-maximized")
-    option.add_argument("--disable-extensions")
+    # option.add_argument("--disable-infobars")
+    # option.add_argument("start-maximized")
+    # option.add_argument("--disable-extensions")
 
-    # Pass the argument 1 to allow and 2 to block
-    option.add_experimental_option("prefs", {
-        "profile.default_content_setting_values.notifications": 1
-    })
+    # # Pass the argument 1 to allow and 2 to block
+    # option.add_experimental_option("prefs", {
+    #     "profile.default_content_setting_values.notifications": 1
+    # })
 
-    browser = webdriver.Chrome(executable_path="./chromedriver", chrome_options=option)
+    # browser = webdriver.Chrome(executable_path="./chromedriver", chrome_options=option)
     browser.get("http://facebook.com")
     browser.maximize_window()
     browser.find_element_by_name("email").send_keys(email)
@@ -144,8 +167,8 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
 
         # wait for the browser to load, this time can be changed slightly ~3 seconds with no difference, but 5 seems
         # to be stable enough
-        time.sleep(5)
-
+        time.sleep(8)
+        print("Slept for 8. Current time is: ", datetime.now())
         if infinite_scroll:
             lenOfPage = browser.execute_script(
                 "window.scrollTo(0, document.body.scrollHeight);var lenOfPage=document.body.scrollHeight;return "
@@ -185,7 +208,7 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
     bs_data = bs(source_data, 'html.parser')
 
     postBigDict = _extract_html(bs_data)
-    browser.close()
+    # browser.close()
 
     return postBigDict
 
@@ -216,14 +239,36 @@ if __name__ == "__main__":
     if args.comments == 'y':
         scrape_comment = True
 
-    postBigDict = extract(page=args.page, numOfPost=args.len, infinite_scroll=infinite, scrape_comment=scrape_comment)
+    # Set Chrome Options
+    option = Options()
 
-    if args.usage == "WT":
+    option.add_argument("--disable-infobars")
+    option.add_argument("start-maximized")
+    option.add_argument("--disable-extensions")
+
+    # Pass the argument 1 to allow and 2 to block
+    option.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.notifications": 1
+    })
+
+    # Initilize Browser object
+    browser = webdriver.Chrome(executable_path="./chromedriver", chrome_options=option)
+    
+    try:
+        postBigDict = extract(page=args.page, numOfPost=args.len, infinite_scroll=infinite, scrape_comment=scrape_comment)
+
+        if args.usage == "WT":
+            with open('output.txt', 'w') as file:
+                file.write(json.dumps(postBigDict, indent=4))  # use json load to recover
+        else:
+            for post in postBigDict:
+                print(post)
+                print("\n")
+    except Exception as e:
+        print(e.message)
+
         with open('output.txt', 'w') as file:
             file.write(json.dumps(postBigDict, indent=4))  # use json load to recover
-    else:
-        for post in postBigDict:
-            print(post)
-            print("\n")
 
     print("Finished")
+    browser.close()
