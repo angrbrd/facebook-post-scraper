@@ -4,8 +4,14 @@ import json
 
 from datetime import datetime
 from selenium import webdriver
+from pynput import keyboard
 from bs4 import BeautifulSoup as bs
 from selenium.webdriver.chrome.options import Options
+
+
+# Global variable to continue/quit the run 
+continue_run = True
+
 
 def _extract_html(bs_data):
     k = bs_data.find_all(class_="_5pcr userContentWrapper")
@@ -47,6 +53,7 @@ def _extract_html(bs_data):
             postDict['PostDate'] = datetime.fromtimestamp(int(unix_time_stamp)).isoformat()
 
         # Shares
+
         postShares = item.find_all(attrs={"data-testid": "UFI2SharesCount/root"})
         postDict['Shares'] = ""
         for postShare in postShares:
@@ -140,9 +147,9 @@ def extract(browser, page, usage, scrape_comment=False):
     # Navigate to the Posts page
     browser.get("http://facebook.com/" + page + "/posts")
 
-    # Test running N times
-    N = 10
-    for i in range(N):
+    # Use global variable (from keyboard input) to continue/terminate run
+    global continue_run
+    while continue_run:
         # Wait for browser to load data, 5 seconds seems to be enough
         time.sleep(5)
         print("Slept for 5: ", datetime.now())
@@ -167,7 +174,7 @@ def extract(browser, page, usage, scrape_comment=False):
         # Scroll further down until lazy load
         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);var lenOfPage=document.body.scrollHeight;return lenOfPage;") 
 
-    # Now that the page scrolled to bottom, grab the source code.
+    # When page has scrolled to desired spot, grab the source code.
     source_data = browser.page_source
 
     # Throw the source into BeautifulSoup and parse
@@ -175,6 +182,19 @@ def extract(browser, page, usage, scrape_comment=False):
     extracted_html = _extract_html(bs_data)
 
     return extracted_html
+
+
+def on_release(key):
+    print('{0} released'.format(key))
+
+    # Set global continue_run to False to terminate run
+    if key == keyboard.Key.shift_r:
+        global continue_run
+        continue_run = False
+
+        # Stop listener
+        return False
+
 
 # Main execution flow
 def main():
@@ -220,6 +240,10 @@ def main():
 
     # Initilize Browser object
     browser = webdriver.Chrome(executable_path="./chromedriver", options=options)
+
+    # Initialize keyboard listener to terminate the scrape manually
+    listener = keyboard.Listener(on_release=on_release)
+    listener.start()
     
     # Scrape page content
     fb_data = extract(browser=browser, page=args.page, usage=args.usage, scrape_comment=scrape_comment)
