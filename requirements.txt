@@ -1,2 +1,3 @@
+pynput
 selenium
 beautifulsoup4
