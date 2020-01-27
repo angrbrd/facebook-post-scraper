@@ -208,6 +208,7 @@ def main():
     # Specify required args
     required_parser = parser.add_argument_group("required arguments")
     required_parser.add_argument('-page', '-p', help="The Facebook Public Page to scrape", required=True)
+    required_parser.add_argument('-headless', help="Run the script with headless browser", required=True)
     
     # Specify optional args
     optional_parser = parser.add_argument_group("optional arguments")
@@ -231,14 +232,17 @@ def main():
     options.add_argument("--disable-infobars")
     options.add_argument("start-maximized")
 
-    # Load image and video blocking Chrome extentions
-    options.add_extension('./chrome_extentions/Image_Blocker.crx')
-    options.add_extension('./chrome_extentions/Nomovdo_Video_Blocker.crx')
-
     # Pass the argument 1 to allow and 2 to block
     options.add_experimental_option("prefs", {
         "profile.default_content_setting_values.notifications": 1
     })
+
+    if args.headless == 'y':
+        options.headless = True
+    else:
+        # Load image and video blocking Chrome extentions
+        options.add_extension('./chrome_extentions/Image_Blocker.crx')
+        options.add_extension('./chrome_extentions/Nomovdo_Video_Blocker.crx')
 
     # Initilize Browser object
     browser = webdriver.Chrome(executable_path="./chromedriver", options=options)
