@@ -84,7 +84,9 @@ def _extract_html(bs_data):
 
             comment_pic = comment.find(class_="_2txe")
             if comment_pic is not None:
-                comment_tmp["image"] = comment_pic.find(class_="img").get("src")
+                comment_img = comment_pic.find(class_="img")
+                if comment_img is not None:
+                    comment_tmp["image"] = comment_img.get("src")
 
             comment_timestamp = comment.find("a", class_="_6qw7")
             if comment_timestamp is not None:
